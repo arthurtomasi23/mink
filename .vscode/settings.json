@@ -1,0 +1,59 @@
+{
+  // ----- Built-in CSS language server -----
+  // Tailwind v4 uses at-rules like `@import "tailwindcss"`, `@theme`,
+  // `@apply`, `@layer`, `@variant`, `@source`, etc. The built-in CSS
+  // validator doesn't know any of these and generates dozens of false
+  // "Unknown at rule" warnings. Silence them.
+  "css.lint.unknownAtRules": "ignore",
+  "scss.lint.unknownAtRules": "ignore",
+  "less.lint.unknownAtRules": "ignore",
+
+  // The CSS validator also flags Tailwind's `bg-*` / `text-*` shorthand
+  // properties as invalid when they appear inside `@apply`. Disable
+  // unknown-property complaints for stylesheets only.
+  "css.lint.unknownProperties": "ignore",
+
+  // Use the Tailwind language server for completions in stylesheets
+  // (it understands `@theme`, `@apply`, `theme()`, etc.).
+  "files.associations": {
+    "*.css": "tailwindcss"
+  },
+
+  // ----- Tailwind CSS IntelliSense -----
+  // Tailwind v4 has no `tailwind.config.*` — the entire theme lives in
+  // `globals.css` under `@theme`. Tell IntelliSense to look there.
+  "tailwindCSS.experimental.configFile": "src/app/globals.css",
+
+  // Recognize utility classes inside `className` props, `cn(...)`,
+  // `clsx(...)` and template literals across these file types.
+  "tailwindCSS.includeLanguages": {
+    "typescript": "javascript",
+    "typescriptreact": "javascript"
+  },
+  "tailwindCSS.classAttributes": ["class", "className", "ngClass", "classList"],
+  "tailwindCSS.experimental.classRegex": [
+    ["cn\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["clsx\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"],
+    ["cva\\(([^)]*)\\)", "[\"'`]([^\"'`]*).*?[\"'`]"]
+  ],
+
+  // Quieten the editor: don't report tailwind utilities as unknown.
+  "tailwindCSS.lint.invalidApply": "ignore",
+  "tailwindCSS.lint.invalidScreen": "ignore",
+  "tailwindCSS.lint.invalidVariant": "ignore",
+  "tailwindCSS.lint.invalidConfigPath": "ignore",
+  "tailwindCSS.lint.invalidTailwindDirective": "ignore",
+
+  // ----- Editor experience -----
+  "editor.quickSuggestions": {
+    "strings": "on"
+  },
+  "editor.codeActionsOnSave": {
+    "source.fixAll.eslint": "explicit"
+  },
+
+  // Format CSS/Tailwind on save with the default formatter.
+  "[css]": { "editor.formatOnSave": true },
+  "[typescript]": { "editor.formatOnSave": false },
+  "[typescriptreact]": { "editor.formatOnSave": false }
+}
