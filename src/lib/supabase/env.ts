@@ -49,3 +49,17 @@ export function isSupabaseConfigured() {
     !!process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY
   );
 }
+
+/**
+ * Returns the list of environment variables that the dashboard needs
+ * but cannot find. Useful for rendering a friendly diagnostic UI
+ * instead of a 500 when Vercel is misconfigured.
+ */
+export function missingDashboardEnv(): string[] {
+  const required = [
+    "NEXT_PUBLIC_SUPABASE_URL",
+    "NEXT_PUBLIC_SUPABASE_ANON_KEY",
+    "SUPABASE_SERVICE_ROLE_KEY",
+  ] as const;
+  return required.filter((k) => !process.env[k] || process.env[k] === "");
+}

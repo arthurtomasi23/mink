@@ -3,6 +3,7 @@ import Link from "next/link";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { BarChart } from "@/components/dashboard/BarChart";
 import { getDashboardStats } from "@/lib/supabase/queries";
+import { ConfigErrorScreen } from "./ConfigErrorScreen";
 
 export const metadata: Metadata = {
   title: "Overview",
@@ -13,7 +14,47 @@ export const dynamic = "force-dynamic";
 export const revalidate = 0;
 
 export default async function OverviewPage() {
-  const stats = await getDashboardStats();
+  let stats: Awaited<ReturnType<typeof getDashboardStats>>;
+  try {
+    stats = await getDashboardStats();
+  } catch (err) {
+    console.error("[dashboard] getDashboardStats failed:", err);
+    const message = (err as Error).message ?? String(err);
+    const looksLikeMissingTable =
+      /relation .* does not exist|404|Not Found|PGRST205|PGRST204/i.test(
+        message,
+      );
+    return (
+      <ConfigErrorScreen
+        title="Couldn’t load dashboard data"
+        cause={message}
+        fix={
+          looksLikeMissingTable ? (
+            <>
+              The Supabase project linked in Vercel is missing the
+              tables this dashboard expects. Apply the migration{" "}
+              <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[12px]">
+                supabase/migrations/20260503140000_admin_and_waitlist.sql
+              </code>{" "}
+              in <strong>Supabase → SQL editor</strong>, then refresh.
+            </>
+          ) : (
+            <>
+              Re-check that{" "}
+              <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[12px]">
+                SUPABASE_SERVICE_ROLE_KEY
+              </code>{" "}
+              in Vercel matches the project pointed to by{" "}
+              <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[12px]">
+                NEXT_PUBLIC_SUPABASE_URL
+              </code>
+              . They must belong to the same Supabase project.
+            </>
+          )
+        }
+      />
+    );
+  }
   const t = stats.totals;
 
   const chartData = stats.perDay.map((d) => ({

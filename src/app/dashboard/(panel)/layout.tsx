@@ -4,18 +4,69 @@ import { Logo } from "@/components/Logo";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { getAdminUser } from "@/lib/supabase/server";
+import { missingDashboardEnv } from "@/lib/supabase/env";
+import { ConfigErrorScreen } from "./ConfigErrorScreen";
 
 /**
  * Defense in depth: the middleware already blocks non-admins at the
  * edge, but we re-verify here on every render so a misconfigured
  * matcher can never expose the dashboard.
+ *
+ * If something goes wrong (env missing, Supabase unreachable, schema
+ * not migrated), we render a diagnostic page instead of throwing — a
+ * 500 with only a digest is impossible to debug from the production UI.
  */
 export default async function PanelLayout({
   children,
 }: {
   children: React.ReactNode;
 }) {
-  const user = await getAdminUser();
+  const missing = missingDashboardEnv();
+  if (missing.length > 0) {
+    return (
+      <ConfigErrorScreen
+        title="Dashboard isn’t fully configured"
+        cause={`Missing environment variable${missing.length > 1 ? "s" : ""}: ${missing.join(", ")}`}
+        fix={
+          <>
+            Add the missing variable{missing.length > 1 ? "s" : ""} in{" "}
+            <strong>Vercel → your project → Settings → Environment Variables</strong>{" "}
+            (Production, Preview, and Development), then redeploy without
+            cache.
+          </>
+        }
+      />
+    );
+  }
+
+  let user: Awaited<ReturnType<typeof getAdminUser>> = null;
+  try {
+    user = await getAdminUser();
+  } catch (err) {
+    console.error("[dashboard] getAdminUser failed:", err);
+    return (
+      <ConfigErrorScreen
+        title="Couldn’t verify your admin session"
+        cause={(err as Error).message}
+        fix={
+          <>
+            This usually means the Supabase URL or service-role key is
+            wrong, or the project the keys belong to doesn’t have the
+            <code className="mx-1 rounded bg-white/10 px-1.5 py-0.5 font-mono text-[12px]">
+              public.is_admin()
+            </code>
+            function from the migration. Re-check your Vercel env vars
+            and make sure the migration{" "}
+            <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[12px]">
+              supabase/migrations/20260503140000_admin_and_waitlist.sql
+            </code>{" "}
+            has been applied to <em>this</em> project.
+          </>
+        }
+      />
+    );
+  }
+
   if (!user) {
     redirect("/dashboard/login");
   }
