@@ -6,14 +6,9 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: [
-    /**
-     * Run on every request *except*:
-     *  - Next.js internals (_next/static, _next/image)
-     *  - The favicon and other top-level static assets
-     *  - API routes other than the dashboard's (the public waitlist
-     *    endpoint doesn't need a session check on every call).
-     */
-    "/((?!_next/static|_next/image|favicon\\.svg|favicon\\.ico|apple-touch-icon\\.png|robots\\.txt|sitemap\\.xml|og\\.png|api/waitlist).*)",
-  ],
+  // Only run middleware where it's actually needed: the dashboard.
+  // The landing page, legal pages, and public APIs don't need session
+  // refresh on every request — keeping the matcher narrow means a
+  // misconfigured Supabase env can never take the whole site down.
+  matcher: ["/dashboard/:path*"],
 };
