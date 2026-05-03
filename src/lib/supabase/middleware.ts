@@ -24,7 +24,13 @@ export async function updateSession(request: NextRequest) {
       "[middleware] Supabase env not configured:",
       (err as Error).message,
     );
-    if (request.nextUrl.pathname.startsWith("/dashboard")) {
+    const isLoginPath = request.nextUrl.pathname === "/dashboard/login";
+    // If we're already on /dashboard/login, fall through and let the
+    // page render — redirecting back to itself would loop forever.
+    if (
+      request.nextUrl.pathname.startsWith("/dashboard") &&
+      !isLoginPath
+    ) {
       const redirect = request.nextUrl.clone();
       redirect.pathname = "/dashboard/login";
       redirect.search = "?error=config";
@@ -96,6 +102,8 @@ export async function updateSession(request: NextRequest) {
     }
   } catch (err) {
     console.error("[middleware] Supabase call failed:", err);
+    // Same loop-protection: if we're already on the login page, just
+    // render it so the user can see the error message.
     if (isDashboard && !isLogin) {
       const redirect = reqUrl.clone();
       redirect.pathname = "/dashboard/login";

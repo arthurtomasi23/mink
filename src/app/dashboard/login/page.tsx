@@ -16,10 +16,18 @@ export default async function LoginPage({
   searchParams: SP;
 }) {
   const sp = await searchParams;
-  const initialError =
-    sp.error === "not_admin"
-      ? "Your account doesn't have admin access."
-      : null;
+  const initialError = (() => {
+    switch (sp.error) {
+      case "not_admin":
+        return "Your account doesn't have admin access.";
+      case "config":
+        return "Dashboard isn't fully configured yet (missing Supabase env vars). Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY in Vercel → Settings → Environment Variables, then redeploy.";
+      case "transient":
+        return "We couldn't reach Supabase just now. Please try again in a moment.";
+      default:
+        return null;
+    }
+  })();
   return (
     <main className="relative grid min-h-screen place-items-center px-4 py-16">
       <div
