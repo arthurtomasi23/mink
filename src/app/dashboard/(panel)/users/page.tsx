@@ -13,6 +13,10 @@ const PAGE_SIZE = 50;
 
 type SP = Promise<{ page?: string }>;
 
+function hasDashboardAccess(u: { is_admin: boolean | null; role: string }) {
+  return u.is_admin === true || u.role === "admin";
+}
+
 export default async function UsersPage({ searchParams }: { searchParams: SP }) {
   const sp = await searchParams;
   const page = Math.max(1, Number(sp.page ?? 1));
@@ -76,15 +80,16 @@ export default async function UsersPage({ searchParams }: { searchParams: SP }) 
                       </div>
                     </td>
                     <td className="px-5 py-3">
-                      {u.role === "admin" ? (
-                        <span className="inline-flex items-center rounded-pill border border-(--mink-brand-a60) bg-(--mink-brand-a18) px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
-                          Admin
-                        </span>
-                      ) : (
+                      <div className="flex flex-wrap items-center gap-1.5">
                         <span className="inline-flex items-center rounded-pill border border-white/10 bg-white/4 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white/80">
-                          {u.role || "User"}
+                          {u.role === "admin" ? "admin (legacy)" : u.role || "user"}
                         </span>
-                      )}
+                        {hasDashboardAccess(u) ? (
+                          <span className="inline-flex items-center rounded-pill border border-(--mink-brand-a60) bg-(--mink-brand-a18) px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider text-white">
+                            Dashboard
+                          </span>
+                        ) : null}
+                      </div>
                     </td>
                     <td className="px-5 py-3 text-(--mink-text-muted)">
                       {u.city ?? "—"}

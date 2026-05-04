@@ -3,7 +3,6 @@
 import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import { getServerSupabase } from "@/lib/supabase/server";
-import { getAdminSupabase } from "@/lib/supabase/admin";
 
 const FAILED_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const FAILED_ATTEMPT_LIMIT = 5;
@@ -84,15 +83,12 @@ export async function loginAction(
     return { ok: false, error: "Sign in failed. Please try again." };
   }
 
-  const adminSupabase = getAdminSupabase();
-  const { data: profileRaw } = await adminSupabase
-    .from("profiles")
-    .select("role")
-    .eq("id", user.id)
-    .maybeSingle();
-  const profile = profileRaw as { role: string | null } | null;
-
-  if (profile?.role !== "admin") {
+  // Dashboard access: profiles.is_admin OR legacy role='admin' — same as public.is_admin().
+  const { data: canAccess, error: rpcError } = await supabase.rpc(
+    "is_admin",
+    { uid: user.id } as never,
+  );
+  if (rpcError || canAccess !== true) {
     await supabase.auth.signOut();
     recordFailure(ip, email);
     return {

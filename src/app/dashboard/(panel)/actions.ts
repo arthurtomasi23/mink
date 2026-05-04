@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { getServerSupabase, getAdminUser } from "@/lib/supabase/server";
 import { getAdminSupabase } from "@/lib/supabase/admin";
+import { DASHBOARD_ADMIN_OR } from "@/lib/supabase/dashboard-access";
 import type { AuditLogInsert, ProfileUpdate } from "@/lib/supabase/types";
 import { generateSecurePassword } from "@/lib/password";
 
@@ -136,9 +137,9 @@ export async function inviteAdminAction(
     }
   }
 
-  // Promote to admin. The profiles row will be created by your existing
-  // new-user trigger; if it isn't (e.g. brand new account), insert one.
-  const update: ProfileUpdate = { role: "admin" };
+  // Grant dashboard access via is_admin. Do NOT set role='admin' —
+  // app roles are only 'user' | 'artist' after decouple_admin_from_role.
+  const update: ProfileUpdate = { is_admin: true };
   if (displayName) update.name = displayName;
 
   const { error: upErr, data: updated } = await supabase
@@ -151,9 +152,12 @@ export async function inviteAdminAction(
     return { ok: false, error: upErr.message };
   }
   if (!updated || updated.length === 0) {
-    const { error: insertErr } = await supabase
-      .from("profiles")
-      .insert({ id: userId, role: "admin", name: displayName } as never);
+    const { error: insertErr } = await supabase.from("profiles").insert({
+      id: userId,
+      name: displayName,
+      role: "user",
+      is_admin: true,
+    } as never);
     if (insertErr) {
       return {
         ok: false,
@@ -199,14 +203,21 @@ export async function demoteAdminAction(formData: FormData) {
 
   const supabase = getAdminSupabase();
 
-  // Make sure at least one admin remains
+  // Count everyone with dashboard access (is_admin or legacy role).
   const { count } = await supabase
     .from("profiles")
     .select("id", { count: "exact", head: true })
-    .eq("role", "admin");
+    .or(DASHBOARD_ADMIN_OR);
   if ((count ?? 0) <= 1) return;
 
-  // Look up the target's email from auth (profiles doesn't store it)
+  // Look up target so we can revoke is_admin and migrate legacy role='admin'.
+  const { data: profRaw } = await supabase
+    .from("profiles")
+    .select("role")
+    .eq("id", targetId)
+    .maybeSingle();
+  const prof = profRaw as { role: string | null } | null;
+
   let targetEmail: string | null = null;
   try {
     const { data } = await supabase.auth.admin.getUserById(targetId);
@@ -215,10 +226,12 @@ export async function demoteAdminAction(formData: FormData) {
     // ignore
   }
 
-  await supabase
-    .from("profiles")
-    .update({ role: "user" } as never)
-    .eq("id", targetId);
+  const patch: ProfileUpdate = { is_admin: false };
+  if (prof?.role === "admin") {
+    patch.role = "user";
+  }
+
+  await supabase.from("profiles").update(patch as never).eq("id", targetId);
 
   await audit("admin.demoted", {
     targetId,

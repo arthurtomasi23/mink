@@ -34,22 +34,32 @@ async function tableExists(table) {
   else ok("profiles table");
 }
 
-// 2. profiles.role distinct
+// 2. Dashboard admin: profiles.is_admin and/or legacy role='admin'
 {
   const { data, error } = await supabase
     .from("profiles")
-    .select("role")
-    .not("role", "is", null);
-  if (error) fail("profiles.role readable", error.message);
-  else {
-    const roles = [...new Set(data.map((r) => r.role))];
-    const admins = data.filter((r) => r.role === "admin").length;
-    if (admins > 0) ok("admin user exists", `${admins} admin(s)`);
-    else
+    .select("role, is_admin")
+    .or("is_admin.eq.true,role.eq.admin")
+    .limit(20);
+  if (error) {
+    if (/is_admin|schema cache|column/i.test(error.message)) {
       fail(
-        "admin user exists",
-        `no rows with role='admin'. distinct roles: [${roles.join(", ") || "none"}]`,
+        "profiles.is_admin column",
+        `${error.message}\n  → Apply mobile migrations (decouple_admin_from_role), or add is_admin boolean.`,
       );
+    } else {
+      fail("dashboard admin query", error.message);
+    }
+  } else if ((data?.length ?? 0) > 0) {
+    ok(
+      "dashboard admin exists",
+      `${data.length}+ row(s) with is_admin or legacy role=admin`,
+    );
+  } else {
+    fail(
+      "dashboard admin exists",
+      "no profile has is_admin=true or role='admin'. See DASHBOARD_ADMIN_PROVISIONING.md",
+    );
   }
 }
 
@@ -86,11 +96,12 @@ if (failures.length > 0) {
   const sqlEditorUrl = projectRef
     ? `https://supabase.com/dashboard/project/${projectRef}/sql/new`
     : "https://supabase.com/dashboard → your project → SQL editor";
-  console.log(`Next step: apply the migration.`);
+  console.log(`Next step: apply migrations.`);
   console.log(`  1. Open ${sqlEditorUrl}`);
-  console.log(`  2. Paste the contents of:`);
+  console.log(`  2. Run (idempotent):`);
   console.log(`       supabase/migrations/20260503140000_admin_and_waitlist.sql`);
-  console.log(`  3. Click "Run" — it's idempotent and safe to re-run.\n`);
+  console.log(`  3. Run mobile-repo migrations adding profiles.is_admin and`);
+  console.log(`     updating public.is_admin() — see DASHBOARD_ADMIN_PROVISIONING.md\n`);
 }
 
 process.exit(failures.length === 0 ? 0 : 1);

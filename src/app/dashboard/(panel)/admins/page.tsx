@@ -32,7 +32,7 @@ export default async function AdminsPage() {
       <section className="rounded-3xl border border-white/8 bg-white/2 p-6 sm:p-8">
         <h2 className="text-lg font-semibold text-white">Invite a new admin</h2>
         <p className="mt-1 text-sm text-(--mink-text-muted)">
-          We&rsquo;ll email an invitation. If they already have a Mink account, we&rsquo;ll just promote them — no email is sent.
+          Dashboard access is controlled by <code className="rounded bg-white/6 px-1 py-0.5 text-[12px]">profiles.is_admin</code> (and legacy <code className="rounded bg-white/6 px-1 py-0.5 text-[12px]">role=&apos;admin&apos;</code>). App persona stays <code className="rounded bg-white/6 px-1 py-0.5 text-[12px]">user</code> or <code className="rounded bg-white/6 px-1 py-0.5 text-[12px]">artist</code>. Inviting sets a one-time password — copy it before leaving this page.
         </p>
         <div className="mt-5">
           <InviteAdminForm />
@@ -51,6 +51,7 @@ export default async function AdminsPage() {
               <tr>
                 <th className="px-6 py-3">Email</th>
                 <th className="px-6 py-3">Name</th>
+                <th className="px-6 py-3">App role</th>
                 <th className="px-6 py-3">Joined</th>
                 <th className="px-6 py-3 text-right">Actions</th>
               </tr>
@@ -74,6 +75,20 @@ export default async function AdminsPage() {
                     </td>
                     <td className="px-6 py-3 text-(--mink-text-muted)">
                       {a.name ?? "—"}
+                    </td>
+                    <td className="px-6 py-3 text-(--mink-text-muted)">
+                      <span className="rounded-pill border border-white/10 bg-white/4 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wider">
+                        {a.role === "admin" ? "legacy admin" : a.role}
+                      </span>
+                      {a.is_admin ? (
+                        <span className="ml-1.5 text-[10px] text-(--mink-text-muted)">
+                          · is_admin
+                        </span>
+                      ) : a.role === "admin" ? (
+                        <span className="ml-1.5 text-[10px] text-(--mink-text-muted)">
+                          · role only
+                        </span>
+                      ) : null}
                     </td>
                     <td className="px-6 py-3 text-(--mink-text-muted)">
                       {new Date(a.created_at).toLocaleDateString()}

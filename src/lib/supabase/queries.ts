@@ -1,6 +1,7 @@
 import "server-only";
 
 import { getAdminSupabase } from "./admin";
+import { DASHBOARD_ADMIN_OR } from "./dashboard-access";
 import type {
   AuditLogRow,
   ProfileRow,
@@ -51,6 +52,7 @@ export type AdminProfile = {
   name: string | null;
   avatar_url: string | null;
   role: string;
+  is_admin: boolean | null;
   created_at: string;
 };
 
@@ -60,6 +62,8 @@ export type AppUserRow = {
   name: string | null;
   avatar_url: string | null;
   role: string;
+  /** Dashboard access flag (new schema). */
+  is_admin: boolean | null;
   city: string | null;
   studio_name: string | null;
   created_at: string;
@@ -192,7 +196,7 @@ export async function getDashboardStats(): Promise<DashboardStats> {
     supabase
       .from("profiles")
       .select("id", { count: "exact", head: true })
-      .eq("role", "admin"),
+      .or(DASHBOARD_ADMIN_OR),
     supabase
       .from("waitlist")
       .select("id, role, email, name, city, artist_spot, created_at")
@@ -313,15 +317,17 @@ export async function getAdminProfiles(): Promise<AdminProfile[]> {
   const supabase = getAdminSupabase();
   const { data, error } = await supabase
     .from("profiles")
-    .select("id, name, avatar_url, role, created_at")
-    .eq("role", "admin")
+    .select("id, name, avatar_url, role, is_admin, created_at")
+    .or(DASHBOARD_ADMIN_OR)
     .order("created_at", { ascending: true });
   if (error) throw error;
 
-  const profiles = (data ?? []) as Pick<
-    ProfileRow,
-    "id" | "name" | "avatar_url" | "role" | "created_at"
-  >[];
+  const profiles = (data ?? []) as unknown as Array<
+    Pick<
+      ProfileRow,
+      "id" | "name" | "avatar_url" | "role" | "created_at"
+    > & { is_admin?: boolean | null }
+  >;
   const emails = await emailsForIds(profiles.map((p) => p.id));
 
   return profiles.map((p) => ({
@@ -329,6 +335,7 @@ export async function getAdminProfiles(): Promise<AdminProfile[]> {
     name: p.name,
     avatar_url: p.avatar_url,
     role: p.role,
+    is_admin: p.is_admin ?? null,
     created_at: p.created_at,
     email: emails.get(p.id) ?? null,
   }));
@@ -357,16 +364,18 @@ export async function getAppUsers(
   const { data, count } = await supabase
     .from("profiles")
     .select(
-      "id, name, avatar_url, role, city, studio_name, created_at",
+      "id, name, avatar_url, role, is_admin, city, studio_name, created_at",
       { count: "exact" },
     )
     .order("created_at", { ascending: false })
     .range(offset, offset + limit - 1);
 
-  const profiles = (data ?? []) as Pick<
-    ProfileRow,
-    "id" | "name" | "avatar_url" | "role" | "city" | "studio_name" | "created_at"
-  >[];
+  const profiles = (data ?? []) as unknown as Array<
+    Pick<
+      ProfileRow,
+      "id" | "name" | "avatar_url" | "role" | "city" | "studio_name" | "created_at"
+    > & { is_admin?: boolean | null }
+  >;
 
   const ids = profiles.map((p) => p.id);
   const [emails, lastSignIns] = await Promise.all([
@@ -380,6 +389,7 @@ export async function getAppUsers(
     name: p.name,
     avatar_url: p.avatar_url,
     role: p.role,
+    is_admin: p.is_admin ?? null,
     city: p.city,
     studio_name: p.studio_name,
     created_at: p.created_at,

@@ -13,7 +13,8 @@
 
 export type WaitlistRole = "seeker" | "artist";
 
-export type AppRole = "user" | "admin" | (string & {});
+/** App-facing role only: `user` | `artist`. Legacy `admin` may still exist on old rows. */
+export type AppRole = "user" | "artist" | "admin" | (string & {});
 
 export interface WaitlistRow {
   id: string;
@@ -49,7 +50,10 @@ export interface ProfileRow {
   id: string;
   name: string | null;
   avatar_url: string | null;
+  /** App persona: seeker vs artist. Dashboard access is `is_admin`, not this field. */
   role: AppRole;
+  /** When true, user may sign into /dashboard (see public.is_admin()). */
+  is_admin?: boolean | null;
   city: string | null;
   bio: string | null;
   studio_name: string | null;
@@ -67,6 +71,7 @@ export interface ProfileRow {
 export interface ProfileUpdate {
   role?: AppRole;
   name?: string | null;
+  is_admin?: boolean;
 }
 
 export interface AuditLogRow {

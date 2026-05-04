@@ -45,7 +45,7 @@ export async function getCurrentUser() {
   return user;
 }
 
-/** Returns the user *only if* they have admin role; null otherwise. */
+/** Returns the user only if `public.is_admin(uid)` is true (`profiles.is_admin` or legacy `role='admin'`). */
 export async function getAdminUser() {
   const supabase = await getServerSupabase();
   const {
