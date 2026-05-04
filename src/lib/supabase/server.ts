@@ -3,6 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { createServerClient } from "@supabase/ssr";
 import { supabaseEnv } from "./env";
+import { supabaseAuthCookieOptions } from "./auth-cookies";
 
 /**
  * Cookie-bound Supabase client for use in Server Components, Route
@@ -11,16 +12,18 @@ import { supabaseEnv } from "./env";
  */
 export async function getServerSupabase() {
   const cookieStore = await cookies();
+  const cookieOpts = supabaseAuthCookieOptions();
 
   return createServerClient(
     supabaseEnv.url(),
     supabaseEnv.anonKey(),
     {
+      ...(cookieOpts ? { cookieOptions: cookieOpts } : {}),
       cookies: {
         getAll() {
           return cookieStore.getAll();
         },
-        setAll(cookiesToSet) {
+        setAll(cookiesToSet, _responseHeaders) {
           try {
             for (const { name, value, options } of cookiesToSet) {
               cookieStore.set(name, value, options);
@@ -30,6 +33,8 @@ export async function getServerSupabase() {
             // forbids mutating cookies there. Middleware handles
             // refreshes; this branch is safe to ignore.
           }
+          // Second arg carries Cache-Control; Server Actions attach cookies
+          // to the outgoing response internally — middleware enforces anti-cache on navigations.
         },
       },
     },

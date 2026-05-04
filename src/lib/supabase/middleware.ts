@@ -1,6 +1,7 @@
 import { createServerClient } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { supabaseEnv } from "./env";
+import { supabaseAuthCookieOptions } from "./auth-cookies";
 
 /**
  * Run on every request that matches the middleware matcher. It
@@ -39,18 +40,26 @@ export async function updateSession(request: NextRequest) {
     return response;
   }
 
+  const cookieOpts = supabaseAuthCookieOptions();
   const supabase = createServerClient(supabaseUrl, supabaseAnonKey, {
+    ...(cookieOpts ? { cookieOptions: cookieOpts } : {}),
     cookies: {
       getAll() {
         return request.cookies.getAll();
       },
-      setAll(cookiesToSet) {
+      setAll(cookiesToSet, responseHeaders) {
         for (const { name, value } of cookiesToSet) {
           request.cookies.set(name, value);
         }
         response = NextResponse.next({ request });
         for (const { name, value, options } of cookiesToSet) {
           response.cookies.set(name, value, options);
+        }
+        // REQUIRED on Vercel / edge: prevents caching responses that carry
+        // Set-Cookie (@supabase/ssr passes Cache-Control via the 2nd arg).
+        const headersObj = responseHeaders ?? {};
+        for (const [key, value] of Object.entries(headersObj)) {
+          response.headers.set(key, value);
         }
       },
     },

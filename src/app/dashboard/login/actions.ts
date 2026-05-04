@@ -74,7 +74,46 @@ export async function loginAction(
 
   if (error) {
     recordFailure(ip, email);
-    return { ok: false, error: "Invalid email or password." };
+    // Supabase merges several real problems into generic "invalid credentials".
+    console.error("[dashboard/login]", error.code, error.message);
+
+    const code = error.code ?? "";
+    const msg = (error.message ?? "").toLowerCase();
+
+    if (code === "email_not_confirmed" || msg.includes("email not confirmed")) {
+      return {
+        ok: false,
+        error:
+          "This email hasn’t been confirmed yet. In Supabase: Authentication → Users → open your user → confirm email, or disable “Confirm email” under Email provider for trusted testing.",
+      };
+    }
+
+    if (
+      code === "otp_disabled" ||
+      msg.includes("signup is disabled") ||
+      msg.includes("email signups")
+    ) {
+      return {
+        ok: false,
+        error:
+          "Email sign-in looks disabled for this Supabase project. Authentication → Providers → Email: enable Email sign-in.",
+      };
+    }
+
+    if (code === "user_banned") {
+      return {
+        ok: false,
+        error: "This account has been banned. Contact support.",
+      };
+    }
+
+    return {
+      ok: false,
+      error:
+        "Wrong email or password for this Supabase project — or no password login exists yet.\n\n" +
+        "Check: Supabase Dashboard → Authentication → Users (does this exact email appear?).\n\n" +
+        "If you only used Apple/Google before, run the SQL from DASHBOARD_ADMIN_PROVISIONING.md to set `auth.users.email` + `encrypted_password`. Use the email you typed here and the password you set there.",
+    };
   }
 
   // Verify admin status BEFORE we let them into the dashboard.

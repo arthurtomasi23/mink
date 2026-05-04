@@ -48,7 +48,7 @@ export function LoginForm({
       {error ? (
         <div
           role="alert"
-          className="rounded-xl border border-red-500/40 bg-red-500/8 p-3 text-sm text-red-200"
+          className="whitespace-pre-wrap rounded-xl border border-red-500/40 bg-red-500/8 p-3 text-sm text-red-200"
         >
           {error}
         </div>

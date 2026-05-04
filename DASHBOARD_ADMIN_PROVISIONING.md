@@ -160,3 +160,20 @@ The landing-page dashboard is aligned with `public.is_admin(uid)`:
 - **Overview “Admins” count** and the **Admins** list use `is_admin = true OR role = 'admin'`.
 
 Run `npm run db:check` (see `scripts/check-readiness.mjs`) to verify `profiles.is_admin`, `is_admin()`, waitlist, and audit log.
+
+---
+
+## Troubleshooting: sign-in works on **localhost** but not on **Vercel**
+
+1. **Production uses a different Supabase project than `.env.local`.**  
+   In Vercel → Settings → Environment Variables, confirm **`NEXT_PUBLIC_SUPABASE_URL`** and **`NEXT_PUBLIC_SUPABASE_ANON_KEY`** match your local `.env.local` exactly (same project ref in the hostname). Compare with this endpoint (hostname only — no secrets):
+   - Local: http://localhost:3000/api/health/auth  
+   - Prod: https://www.mink-app.de/api/health/auth  
+   **`supabaseHost` must match** if you’re testing the same user/password.
+
+2. **`www` vs apex.** If you browse `https://www.mink-app.de` but bookmarks or redirects bounce to `https://mink-app.de` (or vice versa), auth cookies stay on **one hostname** unless scoped. Fix by choosing a **canonical** host on Vercel (redirect apex → www or the reverse).  
+   Optionally set **`AUTH_COOKIE_DOMAIN=.mink-app.de`** (leading dot, no `www`) in Vercel so session cookies apply to **all** subdomains of `mink-app.de`. Omit on localhost.
+
+3. **Supabase Auth URL allow list.** Dashboard → Authentication → URL configuration: **Site URL** should be your canonical public URL. Add **`https://www.mink-app.de/**`** (and apex if needed) under **Redirect URLs** so OAuth and deep links behave; password sign-in is less picky but stays aligned.
+
+4. **Deployed build must include SSR cookie/cache fix.** The Next.js middleware must apply the **second argument** Supabase `@supabase/ssr` passes to `setAll` (Cache-Control on auth responses); without it some edge setups misbehave. This repo wires that correctly — redeploy latest `main`.
