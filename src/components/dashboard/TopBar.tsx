@@ -1,6 +1,13 @@
+import type { DashboardAdminRole } from "@/lib/auth/dashboard-access";
 import { logoutAction } from "@/app/dashboard/(panel)/actions";
 
-export function TopBar({ email }: { email: string }) {
+export function TopBar({
+  email,
+  adminRole,
+}: {
+  email: string;
+  adminRole?: DashboardAdminRole | null;
+}) {
   const initial = (email[0] ?? "?").toUpperCase();
   return (
     <header className="sticky top-0 z-30 border-b border-white/8 bg-canvas/80 backdrop-blur-md">
@@ -8,6 +15,11 @@ export function TopBar({ email }: { email: string }) {
         <div>
           <div className="text-xs font-medium uppercase tracking-[0.18em] text-(--mink-text-faint,#6a6a70)">
             Mink admin
+            {adminRole ? (
+              <span className="ml-2 rounded-pill border border-white/10 bg-white/5 px-2 py-0.5 text-[10px] font-semibold normal-case tracking-normal text-white/90">
+                {adminRole}
+              </span>
+            ) : null}
           </div>
         </div>
 

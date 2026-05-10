@@ -152,14 +152,15 @@ update public.profiles
 
 ## Next.js `/dashboard` app (this repo)
 
-The landing-page dashboard is aligned with `public.is_admin(uid)`:
+The landing-page dashboard is aligned with **`public.is_admin(uid)`** (which your mobile migrations should implement as: row in **`admin_memberships`**, **or** legacy `profiles.is_admin`, **or** legacy `profiles.role = 'admin'`).
 
-- **Sign-in** allows access when `is_admin()` is true (`profiles.is_admin` **or** legacy `role='admin'`).
-- **Invite admin** sets `profiles.is_admin = true`, keeps `role` as `user` or `artist` (does **not** set `role='admin'`). New profiles are inserted with `role: 'user'` and `is_admin: true`.
-- **Demote** sets `is_admin: false` and, if `role` was still `'admin'` (legacy), sets `role` to `'user'`.
-- **Overview “Admins” count** and the **Admins** list use `is_admin = true OR role = 'admin'`.
+- **Sign-in:** email/password and **Sign in with Apple** (OAuth) against the **same** Supabase project as the mobile app. Callback route: **`/auth/callback`** — add it under Supabase → Authentication → URL configuration → **Redirect URLs** for every origin you use (localhost + production).
+- **Unauthorized users** (signed in but `is_admin()` false) get **`/dashboard/unauthorized`** (403-style page), not the main panel.
+- **Invite admin** (dashboard UI) still sets **`profiles.is_admin = true`** for backward compatibility. When you rely on **`admin_memberships`** + RLS only, extend the server action to insert a membership row (e.g. `admin` / `owner`) as your mobile migration defines.
+- **Demote** clears `is_admin` and migrates legacy `role = 'admin'` → `user`.
+- **Overview “Admins” count** and **Admins** list still use profile flags for listing; adjust to query `admin_memberships` when you phase out legacy flags.
 
-Run `npm run db:check` (see `scripts/check-readiness.mjs`) to verify `profiles.is_admin`, `is_admin()`, waitlist, and audit log.
+Run `npm run db:check` (see `scripts/check-readiness.mjs`) to verify `is_admin()`, waitlist, and audit log.
 
 ---
 

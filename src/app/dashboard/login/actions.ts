@@ -122,7 +122,7 @@ export async function loginAction(
     return { ok: false, error: "Sign in failed. Please try again." };
   }
 
-  // Dashboard access: profiles.is_admin OR legacy role='admin' — same as public.is_admin().
+  // Canonical gate: public.is_admin (admin_memberships + legacy profile flags).
   const { data: canAccess, error: rpcError } = await supabase.rpc(
     "is_admin",
     { uid: user.id } as never,
@@ -133,7 +133,7 @@ export async function loginAction(
     return {
       ok: false,
       error:
-        "This account doesn't have access to the admin dashboard.",
+        "No dashboard access for this account. Ask an owner to grant you access in Supabase (`admin_memberships` or legacy admin flags). You can use “Continue with Apple” if that account is authorized.",
     };
   }
 

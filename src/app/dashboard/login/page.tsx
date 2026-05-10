@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { LoginForm } from "./LoginForm";
+import { SignInWithApple } from "./SignInWithApple";
 
 export const metadata: Metadata = {
   title: "Admin sign in",
@@ -16,14 +17,22 @@ export default async function LoginPage({
   searchParams: SP;
 }) {
   const sp = await searchParams;
+  const next = sp.next ?? "/dashboard";
+
   const initialError = (() => {
     switch (sp.error) {
       case "not_admin":
-        return "Your account doesn't have admin access.";
+        return "Your account signed in successfully but isn’t authorized for this dashboard.";
       case "config":
         return "Dashboard isn't fully configured yet (missing Supabase env vars). Set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY in Vercel → Settings → Environment Variables, then redeploy.";
       case "transient":
         return "We couldn't reach Supabase just now. Please try again in a moment.";
+      case "oauth":
+        return (
+          "Apple or Google redirect failed. Add this exact redirect URL under Supabase → Authentication → URL configuration:\n\n" +
+          `${process.env.NEXT_PUBLIC_SITE_URL?.replace(/\/$/, "") ?? "(your deployed origin)"}/auth/callback\n\n` +
+          "Include `http://localhost:3000/auth/callback` for local dev."
+        );
       default:
         return null;
     }
@@ -52,11 +61,27 @@ export default async function LoginPage({
             Admin sign in
           </h1>
           <p className="mt-2 text-sm text-(--mink-text-muted)">
-            Restricted to Mink team members. All sign-in attempts are logged.
+            Restricted area. Uses the same Supabase project as the Mink mobile app —
+            Sign in with Apple or email/password.
           </p>
 
+          <div className="mt-7">
+            <SignInWithApple next={next} />
+          </div>
+
+          <div className="relative my-6">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-white/10" />
+            </div>
+            <div className="relative flex justify-center text-[11px] uppercase tracking-wider">
+              <span className="bg-surface/80 px-3 text-(--mink-text-muted)">
+                or email
+              </span>
+            </div>
+          </div>
+
           <LoginForm
-            next={sp.next ?? "/dashboard"}
+            next={next}
             initialError={initialError}
           />
         </div>

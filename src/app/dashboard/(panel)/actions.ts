@@ -137,8 +137,8 @@ export async function inviteAdminAction(
     }
   }
 
-  // Grant dashboard access via is_admin. Do NOT set role='admin' —
-  // app roles are only 'user' | 'artist' after decouple_admin_from_role.
+  // Grant dashboard access via is_admin-compatible flags. Mobile may use
+  // `admin_memberships` as source of truth — if so, add an insert here when ready.
   const update: ProfileUpdate = { is_admin: true };
   if (displayName) update.name = displayName;
 

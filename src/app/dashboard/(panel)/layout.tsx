@@ -3,18 +3,14 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
-import { getAdminUser } from "@/lib/supabase/server";
+import { getDashboardAccess } from "@/lib/auth/dashboard-access";
 import { missingDashboardEnv } from "@/lib/supabase/env";
 import { ConfigErrorScreen } from "./ConfigErrorScreen";
 
+export const dynamic = "force-dynamic";
+
 /**
- * Defense in depth: the middleware already blocks non-admins at the
- * edge, but we re-verify here on every render so a misconfigured
- * matcher can never expose the dashboard.
- *
- * If something goes wrong (env missing, Supabase unreachable, schema
- * not migrated), we render a diagnostic page instead of throwing — a
- * 500 with only a digest is impossible to debug from the production UI.
+ * Defense in depth: middleware gates first; layout re-validates auth + `is_admin()`.
  */
 export default async function PanelLayout({
   children,
@@ -31,44 +27,45 @@ export default async function PanelLayout({
           <>
             Add the missing variable{missing.length > 1 ? "s" : ""} in{" "}
             <strong>Vercel → your project → Settings → Environment Variables</strong>{" "}
-            (Production, Preview, and Development), then redeploy without
-            cache.
+            (Production, Preview, and Development), then redeploy without cache.
           </>
         }
       />
     );
   }
 
-  let user: Awaited<ReturnType<typeof getAdminUser>> = null;
+  let access: Awaited<ReturnType<typeof getDashboardAccess>>;
   try {
-    user = await getAdminUser();
+    access = await getDashboardAccess();
   } catch (err) {
-    console.error("[dashboard] getAdminUser failed:", err);
+    console.error("[dashboard] getDashboardAccess failed:", err);
     return (
       <ConfigErrorScreen
         title="Couldn’t verify your admin session"
         cause={(err as Error).message}
         fix={
           <>
-            This usually means the Supabase URL or service-role key is
-            wrong, or the project the keys belong to doesn’t have the
+            Re-check Supabase keys and ensure{" "}
             <code className="mx-1 rounded bg-white/10 px-1.5 py-0.5 font-mono text-[12px]">
               public.is_admin()
-            </code>
-            function from the migration. Re-check your Vercel env vars
-            and make sure the migration{" "}
-            <code className="rounded bg-white/10 px-1.5 py-0.5 font-mono text-[12px]">
-              supabase/migrations/20260503140000_admin_and_waitlist.sql
             </code>{" "}
-            has been applied to <em>this</em> project.
+            and{" "}
+            <code className="mx-1 rounded bg-white/10 px-1.5 py-0.5 font-mono text-[12px]">
+              current_admin_role()
+            </code>{" "}
+            exist (mobile migrations).
           </>
         }
       />
     );
   }
 
-  if (!user) {
-    redirect("/dashboard/login");
+  if (!access.user) {
+    redirect("/dashboard/login?next=%2Fdashboard");
+  }
+
+  if (!access.isAdmin) {
+    redirect("/dashboard/unauthorized");
   }
 
   return (
@@ -93,7 +90,10 @@ export default async function PanelLayout({
       </aside>
 
       <div className="flex min-w-0 flex-col">
-        <TopBar email={user.email ?? ""} />
+        <TopBar
+          email={access.user.email ?? ""}
+          adminRole={access.adminRole}
+        />
         <main className="flex-1 px-5 py-8 sm:px-8 sm:py-10">
           <div className="mx-auto w-full max-w-7xl">{children}</div>
         </main>

@@ -1,65 +1,15 @@
 import "server-only";
 
-import { cookies } from "next/headers";
-import { createServerClient } from "@supabase/ssr";
-import { supabaseEnv } from "./env";
-import { supabaseAuthCookieOptions } from "./auth-cookies";
+import { getDashboardAccess } from "@/lib/auth/dashboard-access";
+
+export { getServerSupabase, getCurrentUser } from "./session";
 
 /**
- * Cookie-bound Supabase client for use in Server Components, Route
- * Handlers and Server Actions. Reads/writes the auth cookies set by
- * `@supabase/ssr` so sessions stay in sync.
+ * User may open /dashboard when `public.is_admin(uid)` is true
+ * (`admin_memberships` and/or legacy profile flags).
  */
-export async function getServerSupabase() {
-  const cookieStore = await cookies();
-  const cookieOpts = supabaseAuthCookieOptions();
-
-  return createServerClient(
-    supabaseEnv.url(),
-    supabaseEnv.anonKey(),
-    {
-      ...(cookieOpts ? { cookieOptions: cookieOpts } : {}),
-      cookies: {
-        getAll() {
-          return cookieStore.getAll();
-        },
-        setAll(cookiesToSet, _responseHeaders) {
-          try {
-            for (const { name, value, options } of cookiesToSet) {
-              cookieStore.set(name, value, options);
-            }
-          } catch {
-            // Called from a server component during render — Next.js
-            // forbids mutating cookies there. Middleware handles
-            // refreshes; this branch is safe to ignore.
-          }
-          // Second arg carries Cache-Control; Server Actions attach cookies
-          // to the outgoing response internally — middleware enforces anti-cache on navigations.
-        },
-      },
-    },
-  );
-}
-
-/** Returns the currently signed-in user, or null. */
-export async function getCurrentUser() {
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  return user;
-}
-
-/** Returns the user only if `public.is_admin(uid)` is true (`profiles.is_admin` or legacy `role='admin'`). */
 export async function getAdminUser() {
-  const supabase = await getServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
-  if (!user) return null;
-  const { data: isAdmin, error } = await supabase.rpc("is_admin", {
-    uid: user.id,
-  } as never);
-  if (error || isAdmin !== true) return null;
+  const { user, isAdmin } = await getDashboardAccess();
+  if (!user || !isAdmin) return null;
   return user;
 }

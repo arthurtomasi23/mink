@@ -6,9 +6,9 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  // Only run middleware where it's actually needed: the dashboard.
-  // The landing page, legal pages, and public APIs don't need session
-  // refresh on every request — keeping the matcher narrow means a
-  // misconfigured Supabase env can never take the whole site down.
-  matcher: ["/dashboard/:path*"],
+  matcher: [
+    "/dashboard/:path*",
+    // Lets @supabase/ssr refresh tokens on the OAuth return path.
+    "/auth/callback",
+  ],
 };

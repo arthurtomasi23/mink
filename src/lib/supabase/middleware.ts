@@ -4,17 +4,13 @@ import { supabaseEnv } from "./env";
 import { supabaseAuthCookieOptions } from "./auth-cookies";
 
 /**
- * Run on every request that matches the middleware matcher. It
- *  1. refreshes the Supabase auth cookies if they're about to expire,
- *  2. blocks unauthenticated/non-admin access to /dashboard/*.
+ * Refreshes the Supabase session where cookies are wired, and gates
+ * `/dashboard/*` (except `/dashboard/login`, `/dashboard/unauthorized`,
+ * `/auth/callback`).
  */
 export async function updateSession(request: NextRequest) {
   let response = NextResponse.next({ request });
 
-  // Resolve env defensively. If Supabase isn't configured (e.g. the
-  // first deploy on Vercel before env vars are set), don't crash the
-  // request — bounce dashboard traffic to the login page with an error
-  // and let everything else through.
   let supabaseUrl: string;
   let supabaseAnonKey: string;
   try {
@@ -25,13 +21,10 @@ export async function updateSession(request: NextRequest) {
       "[middleware] Supabase env not configured:",
       (err as Error).message,
     );
-    const isLoginPath = request.nextUrl.pathname === "/dashboard/login";
-    // If we're already on /dashboard/login, fall through and let the
-    // page render — redirecting back to itself would loop forever.
-    if (
-      request.nextUrl.pathname.startsWith("/dashboard") &&
-      !isLoginPath
-    ) {
+    const path = request.nextUrl.pathname;
+    const isLoginPath = path === "/dashboard/login";
+    const isUnauthorizedPath = path === "/dashboard/unauthorized";
+    if (path.startsWith("/dashboard") && !isLoginPath && !isUnauthorizedPath) {
       const redirect = request.nextUrl.clone();
       redirect.pathname = "/dashboard/login";
       redirect.search = "?error=config";
@@ -55,8 +48,6 @@ export async function updateSession(request: NextRequest) {
         for (const { name, value, options } of cookiesToSet) {
           response.cookies.set(name, value, options);
         }
-        // REQUIRED on Vercel / edge: prevents caching responses that carry
-        // Set-Cookie (@supabase/ssr passes Cache-Control via the 2nd arg).
         const headersObj = responseHeaders ?? {};
         for (const [key, value] of Object.entries(headersObj)) {
           response.headers.set(key, value);
@@ -66,34 +57,49 @@ export async function updateSession(request: NextRequest) {
   });
 
   const reqUrl = request.nextUrl;
-  const isDashboard = reqUrl.pathname.startsWith("/dashboard");
-  const isLogin = reqUrl.pathname === "/dashboard/login";
+  const path = reqUrl.pathname;
+  const isDashboard = path.startsWith("/dashboard");
+  const isLogin = path === "/dashboard/login";
+  const isUnauthorized = path === "/dashboard/unauthorized";
 
-  // If anything below throws (network blip, Supabase down, malformed
-  // cookie), don't return a 500 — fail closed for /dashboard/* by
-  // sending the user to the login page, and fail open everywhere else.
   try {
     const {
       data: { user },
     } = await supabase.auth.getUser();
 
-    if (isDashboard && !isLogin) {
+    if (isDashboard && !isLogin && !isUnauthorized) {
       if (!user) {
         const redirect = reqUrl.clone();
         redirect.pathname = "/dashboard/login";
-        redirect.searchParams.set("next", reqUrl.pathname);
+        redirect.searchParams.set("next", path);
         return NextResponse.redirect(redirect);
       }
 
-      // Cheap admin check at the edge. The dashboard layout double-checks
-      // server-side as defense in depth.
       const { data: isAdmin, error } = await supabase.rpc("is_admin", {
         uid: user.id,
       } as never);
       if (error || isAdmin !== true) {
         const redirect = reqUrl.clone();
+        redirect.pathname = "/dashboard/unauthorized";
+        redirect.search = "";
+        return NextResponse.redirect(redirect);
+      }
+    }
+
+    if (isUnauthorized) {
+      if (!user) {
+        const redirect = reqUrl.clone();
         redirect.pathname = "/dashboard/login";
-        redirect.searchParams.set("error", "not_admin");
+        redirect.searchParams.set("next", "/dashboard");
+        return NextResponse.redirect(redirect);
+      }
+      const { data: isAdminElevated } = await supabase.rpc("is_admin", {
+        uid: user.id,
+      } as never);
+      if (isAdminElevated === true) {
+        const redirect = reqUrl.clone();
+        redirect.pathname = "/dashboard";
+        redirect.search = "";
         return NextResponse.redirect(redirect);
       }
     }
@@ -108,12 +114,14 @@ export async function updateSession(request: NextRequest) {
         redirect.search = "";
         return NextResponse.redirect(redirect);
       }
+      const redirect = reqUrl.clone();
+      redirect.pathname = "/dashboard/unauthorized";
+      redirect.search = "";
+      return NextResponse.redirect(redirect);
     }
   } catch (err) {
     console.error("[middleware] Supabase call failed:", err);
-    // Same loop-protection: if we're already on the login page, just
-    // render it so the user can see the error message.
-    if (isDashboard && !isLogin) {
+    if (isDashboard && !isLogin && !isUnauthorized) {
       const redirect = reqUrl.clone();
       redirect.pathname = "/dashboard/login";
       redirect.searchParams.set("error", "transient");
